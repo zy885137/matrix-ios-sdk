@@ -234,6 +234,14 @@
     return NO;
 }
 
+- (void)commit:(MXStoreOnCommitComplete)onComplete
+{
+    if (onComplete)
+    {
+        onComplete();
+    }
+}
+
 - (NSArray *)rooms
 {
     return roomStores.allKeys;

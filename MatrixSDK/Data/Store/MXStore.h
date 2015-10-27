@@ -19,6 +19,11 @@
 #import "MXReceiptData.h"
 
 /**
+ Block called on [MXStore commit:] completion.
+ */
+typedef void (^MXStoreOnCommitComplete)();
+
+/**
  The `MXStore` protocol defines an interface that must be implemented in order to store
  Matrix data handled during a `MXSession`.
  */
@@ -179,8 +184,10 @@
 
  If the store uses permanent storage like database or file, it is the optimised time
  to commit the last changes.
+
+ @param onComplete callback called once data can be read back.
  */
-- (void)commit;
+- (void)commit:(MXStoreOnCommitComplete)onComplete;
 
 /**
  Close the store.

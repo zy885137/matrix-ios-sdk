@@ -373,7 +373,7 @@ NSString *const kMXReceiptsFolder = @"receipts";
     return metaData.userAvatarUrl;
 }
 
-- (void)commit
+- (void)commit:(MXStoreOnCommitComplete)onComplete
 {
     // Save data only if metaData exists
     if (metaData)
@@ -382,6 +382,11 @@ NSString *const kMXReceiptsFolder = @"receipts";
         [self saveRoomsState];
         [self saveMetaData];
         [self saveReceipts];
+    }
+
+    if (onComplete)
+    {
+        onComplete();
     }
 }
 

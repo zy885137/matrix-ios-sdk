@@ -420,9 +420,11 @@
             
             // Store the event
             [mxSession.store storeEventForRoom:_state.roomId event:event direction:MXEventDirectionForwards];
-            
-            // And notify listeners
-            [self notifyListeners:event direction:MXEventDirectionForwards];
+
+            [mxSession.store commit:^{
+                // And notify listeners
+                [self notifyListeners:event direction:MXEventDirectionForwards];
+            }];
         }
     }
 }
@@ -495,13 +497,7 @@
                                                     [self handleMessages:paginatedResponse direction:MXEventDirectionBackwards isTimeOrdered:NO];
                                                     
                                                     // Commit store changes
-                                                    if ([mxSession.store respondsToSelector:@selector(commit)])
-                                                    {
-                                                        [mxSession.store commit];
-                                                    }
-                                                    
-                                                    // Inform the method caller
-                                                    complete();
+                                                    [mxSession.store commit:complete];
                                                 }
                                                 
                                             } failure:^(NSError *error) {
@@ -790,7 +786,7 @@
     
     if ([mxSession.store storeReceipt:data roomId:_state.roomId])
     {
-        [mxSession.store commit];
+        [mxSession.store commit:nil];
         return YES;
     }
     
@@ -811,7 +807,7 @@
         
         if ([mxSession.store storeReceipt:data roomId:_state.roomId])
         {
-            [mxSession.store commit];
+            [mxSession.store commit:nil];
             
             if (sendReceipt)
             {

@@ -378,57 +378,55 @@ typedef void (^MXOnResumeDone)();
             _store.eventStreamToken = paginatedResponse.end;
             
             // Commit store changes
-            if ([_store respondsToSelector:@selector(commit)])
-            {
-                [_store commit];
-            }
-            
-            // there is a pending catchup
-            if (onCatchupDone)
-            {
-                NSLog(@"[MXSession] Events stream catchup with %tu new events", events.count);
-                onCatchupDone();
-                onCatchupDone = nil;
-                
-                // check that the application was not resumed while catching up
-                if (_state == MXSessionStateCatchingUp)
+            [_store commit:^{
+                // there is a pending catchup
+                if (onCatchupDone)
                 {
-                    NSLog(@"[MXSession] go to paused ");
-                    eventStreamRequest = nil;
-                    [self setState:MXSessionStatePaused];
-                    return;
+                    NSLog(@"[MXSession] Events stream catchup with %tu new events", events.count);
+                    onCatchupDone();
+                    onCatchupDone = nil;
+
+                    // check that the application was not resumed while catching up
+                    if (_state == MXSessionStateCatchingUp)
+                    {
+                        NSLog(@"[MXSession] go to paused ");
+                        eventStreamRequest = nil;
+                        [self setState:MXSessionStatePaused];
+                        return;
+                    }
+                    else
+                    {
+                        NSLog(@"[MXSession] resume after a catchup ");
+                    }
                 }
-                else
+
+                // If we are resuming inform the app that it received the last uptodate data
+                if (onResumeDone)
                 {
-                    NSLog(@"[MXSession] resume after a catchup ");
+                    NSLog(@"[MXSession] Events stream resumed with %tu new events", events.count);
+
+                    [self setState:MXSessionStateRunning];
+
+                    onResumeDone();
+                    onResumeDone = nil;
+
+                    // Check SDK user did not called [MXSession close] in onResumeDone
+                    if (nil == _myUser)
+                    {
+                        return;
+                    }
                 }
-            }
 
-            // If we are resuming inform the app that it received the last uptodate data
-            if (onResumeDone)
-            {
-                NSLog(@"[MXSession] Events stream resumed with %tu new events", events.count);
-
-                [self setState:MXSessionStateRunning];
-
-                onResumeDone();
-                onResumeDone = nil;
-
-                // Check SDK user did not called [MXSession close] in onResumeDone
-                if (nil == _myUser)
+                if (MXSessionStateHomeserverNotReachable == _state)
                 {
-                    return;
+                    // The connection to the homeserver is now back
+                    [self setState:MXSessionStateRunning];
                 }
-            }
-            
-            if (MXSessionStateHomeserverNotReachable == _state)
-            {
-                // The connection to the homeserver is now back
-                [self setState:MXSessionStateRunning];
-            }
 
-            // Go streaming from the returned token
-            [self streamEventsFromToken:paginatedResponse.end withLongPoll:YES];
+                // Go streaming from the returned token
+                [self streamEventsFromToken:paginatedResponse.end withLongPoll:YES];
+
+            }];
         }
 
     } failure:^(NSError *error) {
@@ -845,19 +843,16 @@ typedef void (^MXOnResumeDone)();
         _store.eventStreamToken = JSONData[@"end"];
         
         // Commit store changes done in [room handleMessages]
-        if ([_store respondsToSelector:@selector(commit)])
-        {
-            [_store commit];
-        }
+        [_store commit:^{
+            NSLog(@"[MXSession] InitialSync events processed and stored in %.3fms", [[NSDate date] timeIntervalSinceDate:startDate2] * 1000);
 
-        NSLog(@"[MXSession] InitialSync events processed and stored in %.3fms", [[NSDate date] timeIntervalSinceDate:startDate2] * 1000);
+            // Resume from the last known token
+            [self streamEventsFromToken:_store.eventStreamToken withLongPoll:YES];
 
-        // Resume from the last known token
-        [self streamEventsFromToken:_store.eventStreamToken withLongPoll:YES];
-        
-        [self setState:MXSessionStateRunning];
-        onServerSyncDone();
-        
+            [self setState:MXSessionStateRunning];
+            onServerSyncDone();
+        }];
+
     } failure:^(NSError *error) {
         [self setState:MXSessionStateHomeserverNotReachable];
         failure(error);
@@ -936,33 +931,30 @@ typedef void (^MXOnResumeDone)();
         _store.eventStreamToken = syncResponse.nextBatch;
         
         // Commit store changes done in [room handleMessages]
-        if ([_store respondsToSelector:@selector(commit)])
-        {
-            [_store commit];
-        }
-        
-        // Pursue live events listening (long polling)
-        [self serverSyncWithTimeout:SERVER_TIMEOUT_MS success:nil failure:nil];
-        
-        if (_state != MXSessionStateRunning)
-        {
-            [self setState:MXSessionStateRunning];
-            
-            // If we are resuming inform the app that it received the last uptodate data
-            if (onResumeDone)
+        [_store commit:^{
+            // Pursue live events listening (long polling)
+            [self serverSyncWithTimeout:SERVER_TIMEOUT_MS success:nil failure:nil];
+
+            if (_state != MXSessionStateRunning)
             {
-                NSLog(@"[MXSession] Events stream resumed");
-                
-                onResumeDone();
-                onResumeDone = nil;
+                [self setState:MXSessionStateRunning];
+
+                // If we are resuming inform the app that it received the last uptodate data
+                if (onResumeDone)
+                {
+                    NSLog(@"[MXSession] Events stream resumed");
+
+                    onResumeDone();
+                    onResumeDone = nil;
+                }
             }
-        }
-        
-        if (success)
-        {
-            success();
-        }
-        
+
+            if (success)
+            {
+                success();
+            }
+        }];
+
     } failure:^(NSError *error) {
         
         // Make sure [MXSession close] or [MXSession pause] has not been called before the server response
@@ -1166,24 +1158,21 @@ typedef void (^MXOnResumeDone)();
         [room acknowledgeLatestMessage:NO];
 
         // Commit store changes done in [room handleMessages]
-        if ([_store respondsToSelector:@selector(commit)])
-        {
-            [_store commit];
-        }
+        [_store commit:^{
+            [roomsInInitialSyncing removeObject:roomId];
 
-        [roomsInInitialSyncing removeObject:roomId];
-
-        // Notify that room has been sync'ed
-        room.isSync = YES;
-        [[NSNotificationCenter defaultCenter] postNotificationName:kMXSessionInitialSyncedRoomNotification
-                                                            object:self
-                                                          userInfo:@{
-                                                                     kMXSessionNotificationRoomIdKey: roomId
-                                                                     }];
-        if (success)
-        {
-            success(room);
-        }
+            // Notify that room has been sync'ed
+            room.isSync = YES;
+            [[NSNotificationCenter defaultCenter] postNotificationName:kMXSessionInitialSyncedRoomNotification
+                                                                object:self
+                                                              userInfo:@{
+                                                                         kMXSessionNotificationRoomIdKey: roomId
+                                                                         }];
+            if (success)
+            {
+                success(room);
+            }
+        }];
 
     } failure:^(NSError *error) {
         NSLog(@"[MXSession] initialSyncOfRoom failed for room %@. Error: %@", roomId, error);
@@ -1308,22 +1297,24 @@ typedef void (^MXOnResumeDone)();
 
         // Clean the store
         [_store deleteRoom:roomId];
-        
-        // Clean one-to-one room dictionary
-        if (!room.state.isPublic && room.state.members.count == 2)
-        {
-            [self removeOneToOneRoom:room];
-        }
 
-        // And remove the room from the list
-        [rooms removeObjectForKey:roomId];
+        [_store commit:^{
+            // Clean one-to-one room dictionary
+            if (!room.state.isPublic && room.state.members.count == 2)
+            {
+                [self removeOneToOneRoom:room];
+            }
 
-        // Broadcast the left room
-        [[NSNotificationCenter defaultCenter] postNotificationName:kMXSessionDidLeaveRoomNotification
-                                                            object:self
-                                                          userInfo:@{
-                                                                     kMXSessionNotificationRoomIdKey: roomId
-                                                                     }];
+            // And remove the room from the list
+            [rooms removeObjectForKey:roomId];
+
+            // Broadcast the left room
+            [[NSNotificationCenter defaultCenter] postNotificationName:kMXSessionDidLeaveRoomNotification
+                                                                object:self
+                                                              userInfo:@{
+                                                                         kMXSessionNotificationRoomIdKey: roomId
+                                                                         }];
+        }];
     }
 }
 

@@ -168,6 +168,15 @@
     return NO;
 }
 
+- (void)commit:(MXStoreOnCommitComplete)onComplete
+{
+    if (onComplete)
+    {
+        onComplete();
+    }
+}
+
+
 - (NSArray*)getEventReceipts:(NSString*)roomId eventId:(NSString*)eventId sorted:(BOOL)sort
 {
     return nil;
