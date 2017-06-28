@@ -61,6 +61,9 @@
 #define MX_GA
 #endif
 
+#if __has_include(<Realm/Realm.h>)
+#define MX_REALM_STORE
+#endif
 
 #pragma mark - Launch time options
 
