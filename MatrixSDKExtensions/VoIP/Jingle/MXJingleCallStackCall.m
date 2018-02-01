@@ -39,6 +39,7 @@
      */
     RTCAudioTrack *localAudioTrack;
     RTCVideoTrack *localVideoTrack;
+    RTCVideoTrack *localDepthTrack;
     RTCVideoTrack *remoteVideoTrack;
 
     /**
@@ -102,6 +103,7 @@
     // Reset RTC tracks, a latency was observed on avFoundationVideoSourceWithConstraints call when localVideoTrack was not reseted.
     localAudioTrack = nil;
     localVideoTrack = nil;
+    localDepthTrack = nil;
     remoteVideoTrack = nil;
 
     self.selfVideoView = nil;
@@ -481,10 +483,10 @@ didRemoveIceCandidates:(NSArray<RTCIceCandidate *> *)candidates;
 
 - (void)createLocalMediaStream
 {
-    RTCMediaStream *localStream = [peerConnectionFactory mediaStreamWithStreamId:@"ARDAMS"];
+    RTCMediaStream *localStream = [peerConnectionFactory mediaStreamWithStreamId:@"MATRIX"];
 
     // Set up audio
-    localAudioTrack = [peerConnectionFactory audioTrackWithTrackId:@"ARDAMSa0"];
+    localAudioTrack = [peerConnectionFactory audioTrackWithTrackId:@"MATRIXa0"];
     [localStream addAudioTrack:localAudioTrack];
 
     // And video
@@ -507,13 +509,23 @@ didRemoveIceCandidates:(NSArray<RTCIceCandidate *> *)candidates;
             // Use RTCAVFoundationVideoSource to be able to switch the camera
             RTCAVFoundationVideoSource *localVideoSource = [peerConnectionFactory avFoundationVideoSourceWithConstraints:nil];
 
-            localVideoTrack = [peerConnectionFactory videoTrackWithSource:localVideoSource trackId:@"ARDAMSv0"];
+            localVideoTrack = [peerConnectionFactory videoTrackWithSource:localVideoSource trackId:@"MATRIXv0"];
             [localStream addVideoTrack:localVideoTrack];
 
             // Display the self view
             // Use selfVideoView as a container of a RTCEAGLVideoView
             MXJingleVideoView *renderView = [[MXJingleVideoView alloc] initWithContainerView:self.selfVideoView];
             [localVideoTrack addRenderer:renderView];
+
+            // Capture depth(!)
+            RTCMediaConstraints  *constraints =
+            [[RTCMediaConstraints alloc] initWithMandatoryConstraints:nil
+                                                  optionalConstraints:@{
+                                                                        @"matrixDepth": @"true"
+                                                                        }];
+            RTCAVFoundationVideoSource *localDepthSource = [peerConnectionFactory avFoundationVideoSourceWithConstraints:constraints];
+            localDepthTrack = [peerConnectionFactory videoTrackWithSource:localDepthSource trackId:@"MATRIXd0"];
+            [localStream addVideoTrack:localDepthTrack];
 
             [self fixMirrorOnSelfVideoView];
         }

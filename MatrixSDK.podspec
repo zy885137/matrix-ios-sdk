@@ -21,7 +21,7 @@ Pod::Spec.new do |s|
   
   s.requires_arc  = true
   
-  s.ios.deployment_target = "8.0"
+  s.ios.deployment_target = "11.1"
   s.osx.deployment_target = "10.10"
   
   s.default_subspec = 'Core'
@@ -43,7 +43,7 @@ Pod::Spec.new do |s|
     ss.dependency 'MatrixSDK/Core'
     
     # The Google WebRTC stack
-    ss.ios.dependency 'WebRTC', '61.5.19063'
+    ss.ios.dependency 'WebRTC', '99'
   end
   
   s.subspec 'GoogleAnalytics' do |ss|
