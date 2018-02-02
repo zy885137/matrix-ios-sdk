@@ -35,6 +35,13 @@
     RTCPeerConnection *peerConnection;
 
     /**
+     Track the AVCaptureSession and device so we can share it between videocapturers
+     So we can capture both depth & video
+     */
+    AVCaptureSession * captureSession;
+    AVCaptureDeviceInput * captureDeviceInput;
+    
+    /**
      The media tracks.
      */
     RTCAudioTrack *localAudioTrack;
@@ -76,6 +83,33 @@
                                                      name:AVAudioSessionRouteChangeNotification
                                                    object:nil];
     }
+    
+    // Init the capture and lock us on front camera to capture depth
+    
+    captureSession = [[AVCaptureSession alloc] init];
+
+    AVCaptureDevice *device;
+    device = [AVCaptureDevice defaultDeviceWithDeviceType: AVCaptureDeviceTypeBuiltInTrueDepthCamera
+                                                mediaType: AVMediaTypeDepthData
+                                                 position: AVCaptureDevicePositionFront];
+    if (!device) {
+        NSLog(@"Failed to find front capture device.");
+        return nil;
+    }
+    NSError *error = nil;
+    captureDeviceInput =
+        [AVCaptureDeviceInput deviceInputWithDevice:device error:&error];
+    if (!captureDeviceInput) {
+        NSLog(@"Failed to create front camera input: %@", error.localizedDescription);
+        return nil;
+    }
+    
+    if (![captureSession canAddInput:captureDeviceInput]) {
+        NSLog(@"Session does not support capture inputs.");
+        return nil;
+    }
+    [captureSession addInput:captureDeviceInput];
+    
     return self;
 }
 
@@ -507,7 +541,11 @@ didRemoveIceCandidates:(NSArray<RTCIceCandidate *> *)candidates;
         if (device)
         {
             // Use RTCAVFoundationVideoSource to be able to switch the camera
-            RTCAVFoundationVideoSource *localVideoSource = [peerConnectionFactory avFoundationVideoSourceWithConstraints:nil];
+            // sharing the captureSession & deviceInput across the video sources.
+            RTCAVFoundationVideoSource *localVideoSource =
+                [peerConnectionFactory avFoundationVideoSourceWithConstraints:nil
+                                                               captureSession:captureSession
+                                                           captureDeviceInput:captureDeviceInput];
 
             localVideoTrack = [peerConnectionFactory videoTrackWithSource:localVideoSource trackId:@"MATRIXv0"];
             [localStream addVideoTrack:localVideoTrack];
@@ -518,12 +556,15 @@ didRemoveIceCandidates:(NSArray<RTCIceCandidate *> *)candidates;
             [localVideoTrack addRenderer:renderView];
 
             // Capture depth(!)
-            RTCMediaConstraints  *constraints =
-            [[RTCMediaConstraints alloc] initWithMandatoryConstraints:nil
-                                                  optionalConstraints:@{
-                                                                        @"matrixDepth": @"true"
-                                                                        }];
-            RTCAVFoundationVideoSource *localDepthSource = [peerConnectionFactory avFoundationVideoSourceWithConstraints:constraints];
+            RTCMediaConstraints *constraints =
+                [[RTCMediaConstraints alloc] initWithMandatoryConstraints:nil
+                                                      optionalConstraints:@{
+                                                                            @"matrixDepth": @"true"
+                                                                            }];
+            RTCAVFoundationVideoSource *localDepthSource =
+                [peerConnectionFactory avFoundationVideoSourceWithConstraints:constraints
+                                                               captureSession:captureSession
+                                                           captureDeviceInput:captureDeviceInput];
             localDepthTrack = [peerConnectionFactory videoTrackWithSource:localDepthSource trackId:@"MATRIXd0"];
             [localStream addVideoTrack:localDepthTrack];
 
