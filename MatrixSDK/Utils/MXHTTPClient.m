@@ -208,9 +208,6 @@ static NSString* const kMXErrorConsentNotGivenConsentURIJSONKey = @"consent_uri"
     // If an access token is set, use it
     if (accessToken && (0 == [path rangeOfString:@"access_token="].length))
     {
-        // Use '&' if there is already an url separator
-        //        NSString *urlSeparator = [path rangeOfString:@"?"].length ? @"&" : @"?";
-        //        path = [path stringByAppendingString:[NSString stringWithFormat:@"%@access_token=%@", urlSeparator, accessToken]];
         NSString *accessTokenTemp = [NSString stringWithFormat:@"Bearer %@",accessToken];
         [request setValue:accessTokenTemp forHTTPHeaderField:@"Authorization"];
     }
