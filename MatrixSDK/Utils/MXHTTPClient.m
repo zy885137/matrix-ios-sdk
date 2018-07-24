@@ -200,18 +200,21 @@ static NSString* const kMXErrorConsentNotGivenConsentURIJSONKey = @"consent_uri"
         return;
     }
 
-    // If an access token is set, use it
-    if (accessToken && (0 == [path rangeOfString:@"access_token="].length))
-    {
-        // Use '&' if there is already an url separator
-        NSString *urlSeparator = [path rangeOfString:@"?"].length ? @"&" : @"?";
-        path = [path stringByAppendingString:[NSString stringWithFormat:@"%@access_token=%@", urlSeparator, accessToken]];
-    }
-    
     NSString *URLString = [[NSURL URLWithString:path relativeToURL:httpManager.baseURL] absoluteString];
     
     NSMutableURLRequest *request;
     request = [httpManager.requestSerializer requestWithMethod:httpMethod URLString:URLString parameters:parameters error:nil];
+    
+    // If an access token is set, use it
+    if (accessToken && (0 == [path rangeOfString:@"access_token="].length))
+    {
+        // Use '&' if there is already an url separator
+        //        NSString *urlSeparator = [path rangeOfString:@"?"].length ? @"&" : @"?";
+        //        path = [path stringByAppendingString:[NSString stringWithFormat:@"%@access_token=%@", urlSeparator, accessToken]];
+        NSString *accessTokenTemp = [NSString stringWithFormat:@"Bearer %@",accessToken];
+        [request setValue:accessTokenTemp forHTTPHeaderField:@"Authorization"];
+    }
+            
     if (data)
     {
         NSParameterAssert(![httpMethod isEqualToString:@"GET"] && ![httpMethod isEqualToString:@"HEAD"]);
